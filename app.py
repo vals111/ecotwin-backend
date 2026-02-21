@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, request, abort
 from services.auth_service import verify_user_otp
 from flask_cors import CORS
@@ -23,6 +24,14 @@ CORS(app)
 # ===============================
 # SECURITY HELPERS
 # ===============================
+
+@app.route("/check-email-config")
+def check_email_config():
+    return {
+        "EMAIL_USER": os.getenv("EMAIL_USER"),
+        "EMAIL_PASS_EXISTS": True if os.getenv("EMAIL_PASS") else False
+    }
+
 
 def require_user():
     user_id = request.headers.get("User-ID")
