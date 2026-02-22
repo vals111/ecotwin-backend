@@ -25,6 +25,23 @@ CORS(app)
 # SECURITY HELPERS
 # ===============================
 
+import smtplib
+
+def test_smtp_connection():
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASS"))
+        server.quit()
+        return "SMTP login successful"
+    except Exception as e:
+        return f"SMTP failed: {str(e)}"
+
+@app.route("/test-smtp")
+def test_smtp():
+    return {"result": test_smtp_connection()}
+
+
 @app.route("/check-email-config")
 def check_email_config():
     return {
