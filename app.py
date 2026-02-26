@@ -37,18 +37,6 @@ def test_smtp_connection():
     except Exception as e:
         return f"SMTP failed: {str(e)}"
 
-@app.route("/test-smtp")
-def test_smtp():
-    return {"result": test_smtp_connection()}
-
-
-@app.route("/check-email-config")
-def check_email_config():
-    return {
-        "EMAIL_USER": os.getenv("EMAIL_USER"),
-        "EMAIL_PASS_EXISTS": True if os.getenv("EMAIL_PASS") else False
-    }
-
 
 def require_user():
     user_id = request.headers.get("User-ID")
