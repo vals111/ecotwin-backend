@@ -85,7 +85,7 @@ def calculate_sustainability(user_id):
     cursor.execute("""
         INSERT INTO sustainability_history
         (user_id, type, timestamp, total_impact, score)
-        VALUES (?, ?, datetime('now'), ?, ?)
+        VALUES (%s, %s, NOW(), %s, %s)
     """, (user_id, "baseline", total_impact, score))
 
     conn.commit()
@@ -125,7 +125,7 @@ def simulate_sustainability_comparison(user_id, energy_factor, water_factor, tra
     cursor.execute("""
         INSERT INTO sustainability_history
         (user_id, type, timestamp, simulated_impact, simulated_score)
-        VALUES (?, ?, datetime('now'), ?, ?)
+        VALUES (%s, %s, NOW(), %s, %s)
     """, (user_id, "simulation", sim_total, sim_score))
 
     conn.commit()

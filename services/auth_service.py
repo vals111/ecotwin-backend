@@ -26,21 +26,20 @@ def register_user(email, username, password, role="user"):
 
     try:
         cursor.execute("""
-            INSERT INTO users (email, username, password, role, is_verified, otp_code, otp_expiry)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users 
+            (email, username, password, role, is_verified, otp_code, otp_expiry)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (
             email,
             username,
             hashed_password,
             role,
-            0,
+            False,
             otp_code,
             otp_expiry
         ))
 
         conn.commit()
-
-        # Send OTP email
         send_otp_email(email, otp_code)
 
         return {"status": "otp_sent"}
@@ -60,7 +59,7 @@ def verify_user_otp(email, otp):
     cursor.execute("""
         SELECT otp_code, otp_expiry, is_verified
         FROM users
-        WHERE email=?
+        WHERE email=%s
     """, (email,))
 
     user = cursor.fetchone()
@@ -69,28 +68,25 @@ def verify_user_otp(email, otp):
         conn.close()
         return {"status": "user_not_found"}
 
-    if user["is_verified"] == 1:
+    if user["is_verified"]:
         conn.close()
         return {"status": "already_verified"}
 
-    stored_otp = user["otp_code"]
-    expiry_time = datetime.fromisoformat(user["otp_expiry"])
-
-    if datetime.now() > expiry_time:
+    if datetime.now() > user["otp_expiry"]:
         conn.close()
         return {"status": "otp_expired"}
 
-    if stored_otp != otp:
+    if user["otp_code"] != otp:
         conn.close()
         return {"status": "invalid_otp"}
 
     cursor.execute("""
         UPDATE users
-        SET is_verified=1,
-            otp_code=NULL,
-            otp_expiry=NULL
-        WHERE email=?
-    """, (email,))
+        SET is_verified=%s,
+            otp_code=%s,
+            otp_expiry=%s
+        WHERE email=%s
+    """, (True, None, None, email))
 
     conn.commit()
     conn.close()
@@ -106,7 +102,7 @@ def login_user(email, password):
     cursor.execute("""
         SELECT *
         FROM users
-        WHERE email=?
+        WHERE email=%s
     """, (email,))
 
     user = cursor.fetchone()
@@ -115,10 +111,10 @@ def login_user(email, password):
     if not user:
         return {"status": "invalid_credentials"}
 
-    if user["is_verified"] == 0:
+    if not user["is_verified"]:
         return {"status": "not_verified"}
 
-    if bcrypt.checkpw(password.encode('utf-8'), user["password"]):
+    if bcrypt.checkpw(password.encode('utf-8'), user["password"].encode() if isinstance(user["password"], str) else user["password"]):
         return {
             "status": "success",
             "user_id": user["id"],
