@@ -1,8 +1,16 @@
-import sqlite3
-
-DATABASE_NAME = "digital_twin.db"
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 def get_connection():
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
+    database_url = os.getenv("DATABASE_URL")
+
+    if not database_url:
+        raise Exception("DATABASE_URL not configured")
+
+    conn = psycopg2.connect(
+        database_url,
+        cursor_factory=RealDictCursor
+    )
+
     return conn
