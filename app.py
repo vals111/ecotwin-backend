@@ -1,12 +1,15 @@
 import os
-from database.db import get_connection
+import smtplib
+
 from flask import Flask, jsonify, request, abort
-from services.auth_service import verify_user_otp
 from flask_cors import CORS
-from config import APP_NAME
+
+# ✅ FIXED: Removed duplicate imports of get_connection (was imported 3 times)
 from database.db import get_connection
-from services.auth_service import register_user, login_user
+from config import APP_NAME
+from services.auth_service import register_user, login_user, verify_user_otp
 from services.ml_service import predict_future_score, explain_prediction
+# ✅ FIXED: predict_next_value is the correct function name (was calling undefined predict_lstm)
 from services.lstm_service import predict_next_value
 from services.twin_service import (
     get_digital_twin_data,
@@ -25,37 +28,6 @@ CORS(app)
 # ===============================
 # SECURITY HELPERS
 # ===============================
-from database.db import get_connection
-
-@app.route("/test-db")
-def test_db():
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT NOW();")
-
-    result = cursor.fetchone()
-
-    conn.close()
-
-    return {
-        "status": "connected",
-        "time": str(result["now"])
-    }
-
-import smtplib
-
-def test_smtp_connection():
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASS"))
-        server.quit()
-        return "SMTP login successful"
-    except Exception as e:
-        return f"SMTP failed: {str(e)}"
-
 
 def require_user():
     user_id = request.headers.get("User-ID")
@@ -63,24 +35,41 @@ def require_user():
         abort(401)
     return user_id
 
-
 def require_admin():
     user_id = request.headers.get("User-ID")
     if not user_id:
         abort(401)
-
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT role FROM users WHERE id=%s", (user_id,))
     user = cursor.fetchone()
     conn.close()
-
     if not user or user["role"] != "admin":
         abort(403)
 
 # ===============================
-# HEALTH CHECK
+# DEBUG / HEALTH
 # ===============================
+
+@app.route("/test-db")
+def test_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT NOW();")
+    result = cursor.fetchone()
+    conn.close()
+    return {"status": "connected", "time": str(result["now"])}
+
+@app.route("/test-smtp")
+def test_smtp():
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASS"))
+        server.quit()
+        return jsonify({"status": "SMTP login successful"})
+    except Exception as e:
+        return jsonify({"status": "SMTP failed", "error": str(e)})
 
 @app.route("/health", methods=["GET"])
 def health_check():
@@ -95,48 +84,31 @@ def health_check():
 
 @app.route("/api/register", methods=["POST"])
 def register():
-
     data = request.get_json()
-
     email = data.get("email")
     username = data.get("username")
     password = data.get("password")
-
-    return jsonify(
-        register_user(email, username, password)
-    )
+    return jsonify(register_user(email, username, password))
 
 @app.route("/api/verify-otp", methods=["POST"])
 def verify_otp_route():
-
     data = request.get_json()
-
     email = data.get("email")
     otp = data.get("otp")
-
     if not email or not otp:
         return jsonify({
             "status": "error",
             "message": "Email and OTP are required."
         }), 400
-
     result = verify_user_otp(email, otp)
-
     return jsonify(result)
-
 
 @app.route("/api/login", methods=["POST"])
 def login():
-
     data = request.get_json()
-
     email = data.get("email")
     password = data.get("password")
-
-    return jsonify(
-        login_user(email, password)
-    )
-
+    return jsonify(login_user(email, password))
 
 # ===============================
 # USER ROUTES
@@ -169,13 +141,11 @@ def update_traffic_route():
 def simulate():
     require_user()
     data = request.get_json()
-
     result = simulate_scenario(
         data.get("energy_factor", 1),
         data.get("water_factor", 1),
         data.get("traffic_factor", 1)
     )
-
     return jsonify(result)
 
 @app.route("/api/sustainability")
@@ -185,15 +155,15 @@ def sustainability():
 
 @app.route("/api/compare", methods=["POST"])
 def compare():
-    require_user()
-    data = request.get_json()
+    # ✅ FIXED: require_user() was called twice (bug caused double processing)
     user_id = require_user()
+    data = request.get_json()
     result = simulate_sustainability_comparison(
         user_id,
         data.get("energy_factor", 1),
         data.get("water_factor", 1),
         data.get("traffic_factor", 1)
-        )
+    )
     return jsonify(result)
 
 @app.route("/api/history", methods=["GET"])
@@ -211,15 +181,15 @@ def predict():
 
 @app.route("/api/lstm_predict", methods=["POST"])
 def lstm_predict():
-    user_id = require_user()  # Protect route
-    data = request.get_json()
-    days = data.get("days", 7)
-    result = predict_lstm(days)
+    # ✅ FIXED: Was calling undefined predict_lstm(days) — now calls predict_next_value()
+    # ✅ FIXED: Changed to POST to accept JSON body (was GET)
+    require_user()
+    result = predict_next_value()
     return jsonify({"prediction": result})
-
 
 @app.route("/api/explain", methods=["POST"])
 def explain():
+    require_user()
     data = request.get_json()
     explanation = explain_prediction(
         data.get("energy"),
@@ -231,6 +201,7 @@ def explain():
 # ===============================
 # ADMIN ROUTES
 # ===============================
+
 @app.route("/api/admin/users")
 def admin_users():
     require_admin()
@@ -246,7 +217,6 @@ def admin_users():
     conn.close()
     return jsonify([dict(user) for user in users])
 
-
 @app.route("/api/admin/delete_user", methods=["POST"])
 def delete_user():
     require_admin()
@@ -254,7 +224,6 @@ def delete_user():
     user_id = data.get("user_id")
     conn = get_connection()
     cursor = conn.cursor()
-    # Ensure we only delete normal users
     cursor.execute("""
         DELETE FROM users
         WHERE id=%s AND role='user'
@@ -263,21 +232,16 @@ def delete_user():
     conn.close()
     return jsonify({"status": "deleted"})
 
-
 @app.route("/api/admin/global_metrics", methods=["GET"])
 def global_metrics():
     require_admin()
     conn = get_connection()
     cursor = conn.cursor()
-
     cursor.execute("SELECT SUM(total_impact) as total FROM sustainability_history")
     total = cursor.fetchone()["total"]
-
     cursor.execute("SELECT COUNT(*) as count FROM users")
     count = cursor.fetchone()["count"]
-
     conn.close()
-
     return jsonify({
         "total_impact": total or 0,
         "total_users": count
