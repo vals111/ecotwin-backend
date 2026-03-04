@@ -1,4 +1,5 @@
 import os
+from database.db import get_connection
 from flask import Flask, jsonify, request, abort
 from services.auth_service import verify_user_otp
 from flask_cors import CORS
@@ -24,6 +25,24 @@ CORS(app)
 # ===============================
 # SECURITY HELPERS
 # ===============================
+from database.db import get_connection
+
+@app.route("/test-db")
+def test_db():
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT NOW();")
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        "status": "connected",
+        "time": str(result["now"])
+    }
 
 import smtplib
 
