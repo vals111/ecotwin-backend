@@ -71,7 +71,7 @@ def require_admin():
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT role FROM users WHERE id=?", (user_id,))
+    cursor.execute("SELECT role FROM users WHERE id=%s", (user_id,))
     user = cursor.fetchone()
     conn.close()
 
@@ -257,7 +257,7 @@ def delete_user():
     # Ensure we only delete normal users
     cursor.execute("""
         DELETE FROM users
-        WHERE id=? AND role='user'
+        WHERE id=%s AND role='user'
     """, (user_id,))
     conn.commit()
     conn.close()
