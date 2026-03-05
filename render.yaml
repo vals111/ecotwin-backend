@@ -2,5 +2,46 @@ services:
   - type: web
     name: ecotwin-backend
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+```
+
+---
+
+## 🔴 Problem 3 — "Backend not reachable" from frontend = CORS issue or wrong URL
+
+Open your browser **DevTools → Network tab**, click Register, and check what URL the request is going to and what error appears. It will be one of:
+
+- **`net::ERR_CONNECTION_REFUSED`** → backend is down/crashed
+- **`CORS error`** → backend is up but blocking the Netlify domain
+- **`404`** → wrong URL in the JS file
+
+---
+
+## ✅ Immediate Debug Steps
+
+**Step 1** — Open this URL directly in your browser:
+```
+https://ecotwin-backend-tlu0.onrender.com/health
+```
+If this returns `{"status": "running"}` → backend is alive, problem is specific routes.
+If this gives 500 or doesn't load → backend is crashed on startup.
+
+**Step 2** — Go to Render → **Logs** tab → look for the error line. It will say something like:
+```
+psycopg2.OperationalError: could not connect to server
+```
+or
+```
+KeyError: 'SUPABASE_DB_URL'
+```
+or
+```
+ModuleNotFoundError: No module named 'bcrypt'
